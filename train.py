@@ -113,7 +113,7 @@ if __name__ == "__main__":
         test_acc_v = test_acc(test_loader=test_loader, model = model)
         best_test_acc = max(best_test_acc, test_acc_v)
         if args.wandb:
-            wandb.log({"epoch":epoch, "test_acc":test_acc_v, "best_test_acc":best_test_acc})
+            wandb.log({"epoch":epoch, "test_acc":100*test_acc_v, "best_test_acc":100*best_test_acc})
         #opt.lr_params *= (0.01) ** (1 / 19)
         #opt.lr_preconditioner *= (0.01) ** (1 / 19)
         print(
