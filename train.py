@@ -76,7 +76,8 @@ if __name__ == "__main__":
     lrs, sigma_last = get_mup_setting(args)
     initialize_weights(args, model, sigma_last)
 
-    
+    if args.grad_clip_max == -1:
+        args.grad_clip_max = None
     opt = Affine(
         model.parameters(),
         # rank_of_approximation=rank,
