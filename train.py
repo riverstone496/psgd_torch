@@ -9,6 +9,7 @@ from preconditioned_stochastic_gradient_descent import Affine
 import wandb
 import numpy as np
 from torch.utils.data.dataset import Subset
+from utils.set_mup import get_mup_setting, initialize_weights
 
 def train_loss(data, target, model):
     y = model(data)
@@ -65,6 +66,9 @@ if __name__ == "__main__":
         model = MLP(n_hid = args.width)
     elif args.model == 'mlp_tanh':
         model = MLP(n_hid = args.width, nonlin=torch.tanh)
+    
+    lrs, sigma_last = get_mup_setting(args)
+    initialize_weights(args, model, sigma_last)
 
     opt = Affine(
         model.parameters(),
