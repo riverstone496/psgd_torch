@@ -16,14 +16,15 @@ def train_loss(data, target, model):
     y = F.log_softmax(y, dim=1)
     return F.nll_loss(y, target)
 
-def test_loss(test_loader, model):
-    num_errs = 0
+def test_acc(test_loader, model):
+    num_corrects = 0
     with torch.no_grad():
         for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
             y = model(data)
             _, pred = torch.max(y, dim=1)
-            num_errs += torch.sum(pred != target)
-    return num_errs.item() / len(test_loader.dataset)
+            num_corrects += torch.sum(pred == target)
+    return num_corrects.item() / len(test_loader.dataset)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -37,11 +38,14 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, default='mlp_tanh', help='number of epochs to train')
     parser.add_argument('--optim', type=str, default='psgd', help='number of epochs to train')
     parser.add_argument('--parametrization', type=str, default='sp', help='number of epochs to train')
+    parser.add_argument('--base_width', type=int, default=128, help='number of epochs to train')
     parser.add_argument('--width', type=int, default=1024, help='number of epochs to train')
     parser.add_argument('--weight_decay', type=float, default=0.1, help='learning rate')
     parser.add_argument('--preconditioner_init_scale', type=float, default=1.0, help='learning rate')
+    parser.add_argument('--wandb', action='store_true', default=False)
     args = parser.parse_args()
-    wandb.init(config=args)
+    if args.wandb:
+        wandb.init(config=args)
     
     train_dataset = datasets.MNIST('../data', train=True, download=True, transform=transforms.Compose([transforms.ToTensor()]))
     if args.train_size != -1:
@@ -66,6 +70,7 @@ if __name__ == "__main__":
         model = MLP(n_hid = args.width)
     elif args.model == 'mlp_tanh':
         model = MLP(n_hid = args.width, nonlin=torch.tanh)
+    model = model.to(device)
     
     lrs, sigma_last = get_mup_setting(args)
     initialize_weights(args, model, sigma_last)
@@ -82,13 +87,13 @@ if __name__ == "__main__":
     )
 
     TrainLosses, best_test_loss, LogDets = [], 1.0, []
-    for epoch in range(20):
+    for epoch in range(1, args.epochs+1):
         for _, (data, target) in enumerate(train_loader):
             data = data.to(device)
             target = target.to(device)
 
             def closure():
-                xentropy = train_loss(data, target)
+                xentropy = train_loss(data, target, model)
                 l2 = sum(
                     [
                         torch.sum(torch.rand_like(p) * p * p)
@@ -99,12 +104,14 @@ if __name__ == "__main__":
 
             _, loss = opt.step(closure)
             TrainLosses.append(loss.item())
-
-        best_test_loss = min(best_test_loss, test_loss())
-        opt.lr_params *= (0.01) ** (1 / 19)
-        opt.lr_preconditioner *= (0.01) ** (1 / 19)
+            test_acc_v = test_acc(test_loader=test_loader, model = model)
+            best_test_acc = min(best_test_loss, test_acc_v)
+            if args.wandb:
+                wandb.log({"epoch":epoch, "test_acc":test_acc_v, "best_test_acc":best_test_acc})
+            opt.lr_params *= (0.01) ** (1 / 19)
+            opt.lr_preconditioner *= (0.01) ** (1 / 19)
         print(
             "Epoch: {}; best test classification error rate: {}".format(
-                epoch + 1, best_test_loss
+                epoch , best_test_loss
             )
         )

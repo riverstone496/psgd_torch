@@ -23,14 +23,16 @@ def initialize_weights(args, model, scale_last):
 
 def initialize_layer(args, scale_last, name, layer):
     if isinstance(layer, (nn.Conv2d, nn.Linear)):
-        if args.activation == 'relu':
+        if 'relu' in args.model:
             nn.init.kaiming_normal_(layer.weight, nonlinearity='relu')
-        elif args.activation == 'tanh':
+        elif 'tanh' in args.model:
             nn.init.kaiming_normal_(layer.weight, nonlinearity='tanh')
-        elif args.activation == 'sigmoid':
+        elif 'sigmoid' in args.model:
             nn.init.kaiming_normal_(layer.weight, nonlinearity='sigmoid')
-        elif args.activation == 'leaky_relu':
+        elif 'leaky_relu' in args.model:
             nn.init.kaiming_normal_(layer.weight, nonlinearity='leaky_relu')
+        else:
+            nn.init.kaiming_normal_(layer.weight, nonlinearity='relu')
         if layer.bias is not None:
             nn.init.constant_(layer.bias, 0)
         if 'output' in name:
