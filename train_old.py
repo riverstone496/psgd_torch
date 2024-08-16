@@ -59,15 +59,15 @@ if __name__ == "__main__":
                 vs = [torch.randn_like(W) for W in model.parameters()]
                 Hvs = torch.autograd.grad(grads, model.parameters(), vs)
                 with torch.no_grad():
-                    Qs = [psgd.update_precond_kron(Qlr[0], Qlr[1], v, Hv, step=args.curvature_step) for (Qlr, v, Hv) in zip(Qs, vs, Hvs)]
+                    Qs = [psgd.update_precond_kron(Qlr[0], Qlr[1], v, Hv, step=args.curvature_lr) for (Qlr, v, Hv) in zip(Qs, vs, Hvs)]
                     pre_grads = [psgd.precond_grad_kron(Qlr[0], Qlr[1], g) for (Qlr, g) in zip(Qs, grads)]
                     grad_norm = torch.sqrt(sum([torch.sum(g * g) for g in pre_grads]))
                     lr_adjust = min(grad_norm_clip_thr / grad_norm, 1.0)
                     [W.subtract_(lr_adjust * args.lr * g) for (W, g) in zip(model.parameters(), pre_grads)]
                     TrainLosses.append(loss.item())
                     if batch_idx % 3 == 0:
-                        dgPdg = [torch.sum((Qlr[0] @ dg @ Qlr[1].T)**2) for (Qlr, dg) in zip(Qs, Hvs)]
-                        dxPinvdx = [torch.sum((torch.linalg.inv(Qlr[0].T) @ dx @ torch.linalg.inv(Qlr[1]))**2) for (Qlr, dx) in zip(Qs, vs)]
+                        dgPdg = [dg.reshape(-1).T @ psgd.precond_grad_kron(Qlr[0], Qlr[1], dg).reshape(-1) for (Qlr, dg) in zip(Qs, Hvs)]
+                        dxPinvdx = [dx.reshape(-1).T @ psgd.precond_grad_kron(torch.inverse(Qlr[0]), torch.inverse(Qlr[1]), dx).reshape(-1) for (Qlr, dx) in zip(Qs, vs)]
                         criterion = sum(dgPdg) + sum(dxPinvdx)
                         iteration = len(train_loader) * epoch + batch_idx
                         print(f"Epoch:{epoch+1} Iteration:{iteration}, Criteion:{criterion}")
