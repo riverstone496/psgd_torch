@@ -7,6 +7,8 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from preconditioned_stochastic_gradient_descent import Affine
 import wandb
+import numpy as np
+from torch.utils.data.dataset import Subset
 
 def train_loss(data, target, model):
     y = model(data)
@@ -24,22 +26,30 @@ def test_loss(test_loader, model):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch_size', type=int, default=2048, help='input batch size for training')
+    parser.add_argument('--batch_size', type=int, default=1024, help='input batch size for training')
+    parser.add_argument('--train_size', type=int, default=-1, help='input batch size for training')
     parser.add_argument('--test_batch_size', type=int, default=1000, help='input batch size for testing')
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train')
     parser.add_argument('--lr', type=float, default=0.1, help='learning rate')
-    parser.add_argument('--preconditioner_lr', type=float, default=0.01, help='learning rate')
+    parser.add_argument('--preconditioner_lr', type=float, default=0.1, help='learning rate')
     parser.add_argument('--momentum', type=float, default=0.2, help='learning rate')
     parser.add_argument('--model', type=str, default='mlp_tanh', help='number of epochs to train')
     parser.add_argument('--optim', type=str, default='psgd', help='number of epochs to train')
+    parser.add_argument('--parametrization', type=str, default='sp', help='number of epochs to train')
     parser.add_argument('--width', type=int, default=1024, help='number of epochs to train')
     parser.add_argument('--weight_decay', type=float, default=0.1, help='learning rate')
     parser.add_argument('--preconditioner_init_scale', type=float, default=1.0, help='learning rate')
     args = parser.parse_args()
     wandb.init(config=args)
     
+    train_dataset = datasets.MNIST('../data', train=True, download=True, transform=transforms.Compose([transforms.ToTensor()]))
+    if args.train_size != -1:
+        indices = list(range(len(train_dataset)))
+        np.random.shuffle(indices)
+        train_idx = indices[:args.train_size]
+        train_dataset = Subset(train_dataset, train_idx)
     train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('../data', train=True, download=True, transform=transforms.Compose([transforms.ToTensor()])),    
+        train_dataset,    
         batch_size=args.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(
         datasets.MNIST('../data', train=False, transform=transforms.Compose([transforms.ToTensor()])),    
