@@ -34,13 +34,14 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train')
     parser.add_argument('--lr', type=float, default=0.1, help='learning rate')
     parser.add_argument('--preconditioner_lr', type=float, default=0.1, help='learning rate')
+    parser.add_argument('--grad_clip_max', type=float, default=10, help='learning rate')
     parser.add_argument('--momentum', type=float, default=0.2, help='learning rate')
     parser.add_argument('--model', type=str, default='mlp_tanh', help='number of epochs to train')
     parser.add_argument('--optim', type=str, default='psgd', help='number of epochs to train')
     parser.add_argument('--parametrization', type=str, default='sp', help='number of epochs to train')
     parser.add_argument('--base_width', type=int, default=128, help='number of epochs to train')
     parser.add_argument('--width', type=int, default=1024, help='number of epochs to train')
-    parser.add_argument('--weight_decay', type=float, default=0.1, help='learning rate')
+    parser.add_argument('--weight_decay', type=float, default=1e-5, help='learning rate')
     parser.add_argument('--preconditioner_init_scale', type=float, default=1.0, help='learning rate')
     parser.add_argument('--wandb', action='store_true', default=False)
     args = parser.parse_args()
@@ -75,6 +76,7 @@ if __name__ == "__main__":
     lrs, sigma_last = get_mup_setting(args)
     initialize_weights(args, model, sigma_last)
 
+    
     opt = Affine(
         model.parameters(),
         # rank_of_approximation=rank,
@@ -83,12 +85,12 @@ if __name__ == "__main__":
         lr_preconditioner=args.preconditioner_lr,
         step_normalizer="1st", #this does Approx Newton on Lie Group
         momentum=args.momentum,   # match the momentum with Adam so that only their 'preconditioners' are different
-        grad_clip_max_norm=10.0,
+        grad_clip_max_norm=args.grad_clip_max,
     )
 
-    TrainLosses, best_test_loss, LogDets = [], 1.0, []
+    TrainLosses, best_test_acc, LogDets = [], 0, []
     for epoch in range(1, args.epochs+1):
-        for _, (data, target) in enumerate(train_loader):
+        for batch_idx, (data, target) in enumerate(train_loader):
             data = data.to(device)
             target = target.to(device)
 
@@ -104,14 +106,18 @@ if __name__ == "__main__":
 
             _, loss = opt.step(closure)
             TrainLosses.append(loss.item())
-            test_acc_v = test_acc(test_loader=test_loader, model = model)
-            best_test_acc = min(best_test_loss, test_acc_v)
-            if args.wandb:
-                wandb.log({"epoch":epoch, "test_acc":test_acc_v, "best_test_acc":best_test_acc})
-            opt.lr_params *= (0.01) ** (1 / 19)
-            opt.lr_preconditioner *= (0.01) ** (1 / 19)
+            
+            if batch_idx % 10 == 0:
+                print(f"Epoch:{epoch} Idx:{batch_idx} TrainLoss:{TrainLosses[-1]}")
+
+        test_acc_v = test_acc(test_loader=test_loader, model = model)
+        best_test_acc = max(best_test_acc, test_acc_v)
+        if args.wandb:
+            wandb.log({"epoch":epoch, "test_acc":test_acc_v, "best_test_acc":best_test_acc})
+        #opt.lr_params *= (0.01) ** (1 / 19)
+        #opt.lr_preconditioner *= (0.01) ** (1 / 19)
         print(
             "Epoch: {}; best test classification error rate: {}".format(
-                epoch , best_test_loss
+                epoch , best_test_acc
             )
         )
